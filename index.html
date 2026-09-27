@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Affordable Production-Ready Dopamine Indicator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #0a0a0f;
+            color: #e0e0e0;
+        }
+        #container {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: 1;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #ui-panel {
+            position: fixed;
+            top: calc(16px + env(safe-area-inset-top, 0px));
+            right: calc(16px + env(safe-area-inset-right, 0px));
+            width: 320px;
+            background: rgba(8, 10, 18, 0.82);
+            border-radius: 12px; padding: 14px;
+            z-index: 10; backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 220, 160, 0.15);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+            transition: opacity 0.25s;
+            max-height: calc(100vh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+            overflow-y: auto;
+        }
+        #ui-panel.hidden { opacity: 0.12; }
+        #ui-panel:hover { opacity: 1; }
+        .control-group { margin-bottom: 14px; }
+        .control-group h3 {
+            font-size: 11px; letter-spacing: 0.08em;
+            color: #7a8a9a; margin-bottom: 8px; text-transform: uppercase;
+        }
+        .control-group h3.accent { color: #ff9d5c; }
+        .slider-container {
+            display: flex; align-items: center; margin-bottom: 6px;
+        }
+        .slider-container label { width: 120px; font-size: 12px; }
+        .slider-container input[type=range] {
+            flex: 1; height: 4px; background: #2a2a35;
+            border-radius: 4px; outline: none;
+        }
+        .slider-container span {
+            width: 42px; text-align: right; font-size: 12px;
+            margin-left: 8px; color: #00d4a0;
+        }
+        button {
+            background: #1e1e28; color: #ddd; border: none;
+            padding: 7px 11px; border-radius: 6px; cursor: pointer;
+            font-size: 11px; margin: 0 4px 5px 0; transition: 0.15s;
+        }
+        button:hover { background: #2c2c3a; }
+        button.active { background: #00a878; color: #fff; }
+        button.active.warn { background: #c85a30; }
+        .button-group { display: flex; flex-wrap: wrap; }
+        #stats {
+            margin-top: 12px; font-size: 11px; line-height: 1.45;
+            border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;
+        }
+        #stats div { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        #stats span { color: #00d4a0; }
+        .toggle-ui {
+            position: fixed;
+            top: calc(16px + env(safe-area-inset-top, 0px));
+            left: calc(16px + env(safe-area-inset-left, 0px));
+            background: rgba(0,0,0,0.55); color: #fff; border: none;
+            border-radius: 50%; width: 40px; height: 40px; font-size: 18px;
+            cursor: pointer; z-index: 11; display: none;
+        }
+        #permission-overlay {
+            position: fixed; inset: 0; background: rgba(5,6,12,0.95);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 100; text-align: center; padding: 24px;
+        }
+        #permission-overlay h2 { margin-bottom: 14px; font-weight: 500; }
+        #permission-overlay p {
+            max-width: 520px; line-height: 1.6; margin-bottom: 28px; color: #aab;
+        }
+        #start-button {
+            background: #00a878; color: #fff; font-size: 15px;
+            padding: 12px 28px; border: none; border-radius: 8px; cursor: pointer;
+        }
+        #start-button:hover { background: #00c890; }
+        #video-preview {
+            position: fixed;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            left: calc(16px + env(safe-area-inset-left, 0px));
+            width: 160px; height: 120px; border-radius: 8px;
+            border: 1px solid rgba(0,212,160,0.3); object-fit: cover;
+            z-index: 5; opacity: 0.7; display: none;
+        }
+        @media (max-width: 768px) {
+            #ui-panel { width: 260px; }
+            .toggle-ui { display: block; }
+        }
+    </style>
+</head>
+<body>
+    <div id="permission-overlay">
+        <h2>Affordable Production-Ready Dopamine Indicator</h2>
+        <p>
+            Sensor-driven cognitive loop.<br>
+            Camera + microphone → FIR/IIR filtering + XOR feature fusion → evolving 2.5D grid + neuromorphic batch field.<br>
+            No data is stored or transmitted.
+        </p>
+        <button id="start-button">Grant Sensors &amp; Start</button>
+    </div>
+
+    <div id="container">
+        <canvas id="gridCanvas"></canvas>
+    </div>
+    <video id="video-preview" autoplay muted playsinline></video>
+    <button class="toggle-ui">☰</button>
+
+    <div id="ui-panel">
+        <div class="control-group">
+            <h3>ROLB Cycle</h3>
+            <div class="button-group">
+                <button id="btn-observe" class="active">Observe</button>
+                <button id="btn-learn" class="active">Learn</button>
+                <button id="btn-behave" class="active">Behave</button>
+                <button id="btn-react" class="active">React</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Sensor Gain</h3>
+            <div class="slider-container">
+                <label>Mic Sensitivity</label>
+                <input type="range" id="mic-gain" min="0.2" max="4" step="0.1" value="1.2">
+                <span>1.2</span>
+            </div>
+            <div class="slider-container">
+                <label>Cam Motion</label>
+                <input type="range" id="cam-gain" min="0.1" max="3" step="0.1" value="1.0">
+                <span>1.0</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3 class="accent">VLC-Style Audio Controls</h3>
+            <div class="slider-container">
+                <label>Volume</label>
+                <input type="range" id="vlc-volume" min="0" max="200" step="1" value="100">
+                <span>100%</span>
+            </div>
+            <div class="slider-container">
+                <label>Balance</label>
+                <input type="range" id="vlc-balance" min="-100" max="100" step="1" value="0">
+                <span>0</span>
+            </div>
+            <div class="slider-container">
+                <label>Bass</label>
+                <input type="range" id="vlc-bass" min="-10" max="10" step="1" value="0">
+                <span>0dB</span>
+            </div>
+            <div class="slider-container">
+                <label>Mid</label>
+                <input type="range" id="vlc-mid" min="-10" max="10" step="1" value="0">
+                <span>0dB</span>
+            </div>
+            <div class="slider-container">
+                <label>Treble</label>
+                <input type="range" id="vlc-treble" min="-10" max="10" step="1" value="0">
+                <span>0dB</span>
+            </div>
+            <div class="button-group">
+                <button id="btn-mute">Mute</button>
+                <button id="btn-loudness">Loudness</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>FIR / IIR Math Table</h3>
+            <div class="slider-container">
+                <label>FIR Taps</label>
+                <input type="range" id="fir-taps" min="3" max="15" step="2" value="5">
+                <span>5</span>
+            </div>
+            <div class="slider-container">
+                <label>IIR α</label>
+                <input type="range" id="iir-alpha" min="0.05" max="0.9" step="0.05" value="0.25">
+                <span>0.25</span>
+            </div>
+            <div class="slider-container">
+                <label>XOR Bitmask</label>
+                <input type="range" id="xor-mask" min="0" max="255" step="1" value="170">
+                <span>170</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3 class="accent">Neuromorphic Batch (Cellular)</h3>
+            <div class="slider-container">
+                <label>Importancia de Contenido</label>
+                <input type="range" id="neuro-batch" min="1" max="8" step="1" value="4">
+                <span>4</span>
+            </div>
+            <div class="slider-container">
+                <label>Fire Threshold</label>
+                <input type="range" id="neuro-thresh" min="0.2" max="1.2" step="0.05" value="0.75">
+                <span>0.75</span>
+            </div>
+            <div class="button-group">
+                <button id="btn-digit" class="active">Digit / XOR Matches</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Grid Generator</h3>
+            <div class="slider-container">
+                <label>Grid Size</label>
+                <input type="range" id="grid-size" min="16" max="64" step="8" value="32">
+                <span>32</span>
+            </div>
+            <div class="slider-container">
+                <label>Decay</label>
+                <input type="range" id="decay" min="0.85" max="0.99" step="0.01" value="0.94">
+                <span>0.94</span>
+            </div>
+            <div class="button-group">
+                <button id="mode-energy" class="active">Energy</button>
+                <button id="mode-xor">XOR Field</button>
+                <button id="mode-wave">Wave</button>
+                <button id="mode-cellular">Cellular</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Presets</h3>
+            <div class="button-group">
+                <button id="preset-calm">Calm</button>
+                <button id="preset-reactive">Reactive</button>
+                <button id="preset-chaotic">Chaotic</button>
+                <button id="preset-filter">Filter Focus</button>
+                <button id="preset-neuromorphic">Neuromorphic</button>
+            </div>
+        </div>
+
+        <div id="stats">
+            <div>FPS <span id="fps">–</span></div>
+            <div>Dominant Freq <span id="dom-freq">– Hz</span></div>
+            <div>Audio Energy <span id="audio-e">0.00</span></div>
+            <div>Motion Energy <span id="motion-e">0.00</span></div>
+            <div>XOR State <span id="xor-s">0x00</span></div>
+            <div>Active Cells <span id="active-c">0</span></div>
+            <div>Neuro Epoch <span id="neuro-epoch">0</span></div>
+            <div>Spike Rate <span id="spike-rate">0.00</span></div>
+            <div>Digit <span id="digit-s">0</span></div>
+            <div>Loop Phase <span id="phase">Observe</span></div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    //  ROLB Pattern – Affordable Production-Ready Dopamine Indicator
+    //  Sensors: Microphone + Camera
+    //  Math: FIR / IIR coefficient tables + XOR feature fusion
+    //  Neuromorphic batch recording layered on the Cellular mode
+    //  2.5D pseudo-isometric field rendering
+    //  VLC-style audio control scaffold (volume/balance/bass/mid/treble)
+    //  Output: Evolving responsive grid
+    // ============================================================
+
+    // ---------- Math Table: FIR / IIR coefficients ----------
+    const MATH = {
+        firKernels: {
+            3:  [0.25, 0.5, 0.25],
+            5:  [0.1, 0.2, 0.4, 0.2, 0.1],
+            7:  [0.05, 0.1, 0.2, 0.3, 0.2, 0.1, 0.05],
+            9:  [0.04, 0.08, 0.12, 0.16, 0.2, 0.16, 0.12, 0.08, 0.04],
+            11: [0.03, 0.05, 0.08, 0.12, 0.15, 0.18, 0.15, 0.12, 0.08, 0.05, 0.03],
+            13: [0.02, 0.04, 0.06, 0.09, 0.12, 0.14, 0.16, 0.14, 0.12, 0.09, 0.06, 0.04, 0.02],
+            15: [0.015, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15, 0.13, 0.11, 0.09, 0.07, 0.05, 0.03, 0.015]
+        },
+        iirAlpha: 0.25,
+        xorMask: 0xAA
+    };
+
+    // ---------- Small bitmap font (5x7), digits 0-9, self-authored ----------
+    // Used purely as a stylized "digit field" driven by the XOR fusion state —
+    // not derived from any external dataset or image.
+    const DIGIT_FONT = {
+        0: [0b01110,0b10001,0b10011,0b10101,0b11001,0b10001,0b01110],
+        1: [0b00100,0b01100,0b00100,0b00100,0b00100,0b00100,0b01110],
+        2: [0b01110,0b10001,0b00001,0b00010,0b00100,0b01000,0b11111],
+        3: [0b11111,0b00010,0b00100,0b00010,0b00001,0b10001,0b01110],
+        4: [0b00010,0b00110,0b01010,0b10010,0b11111,0b00010,0b00010],
+        5: [0b11111,0b10000,0b11110,0b00001,0b00001,0b10001,0b01110],
+        6: [0b00110,0b01000,0b10000,0b11110,0b10001,0b10001,0b01110],
+        7: [0b11111,0b00001,0b00010,0b00100,0b01000,0b01000,0b01000],
+        8: [0b01110,0b10001,0b10001,0b01110,0b10001,0b10001,0b01110],
+        9: [0b01110,0b10001,0b10001,0b01111,0b00001,0b00010,0b01100]
+    };
+
+    // ---------- Global state ----------
+    let audioCtx, analyser, micSource, dataArray;
+    let videoEl, videoCanvas, videoCtx, prevFrame = null;
+    let grid = [], nextGrid = [], gridSize = 32;
+    let potential = null, refractory = null; // neuromorphic batch layer
+    let spikeBatchLog = [];
+    let neuroEpoch = 0, spikeRate = 0;
+
+    let settings = {
+        micGain: 1.2,
+        camGain: 1.0,
+        firTaps: 5,
+        iirAlpha: 0.25,
+        xorMask: 0xAA,
+        decay: 0.94,
+        mode: 'energy',
+        observe: true,
+        learn: true,
+        behave: true,
+        react: true,
+        // neuromorphic batch (cellular mode)
+        neuroBatchSize: 4,
+        neuroThreshold: 0.75,
+        digitField: true,
+        // VLC-style audio scaffold
+        volume: 1.0,
+        balance: 0,
+        bass: 0,
+        mid: 0,
+        treble: 0,
+        muted: false,
+        loudness: false
+    };
+    let audioEnergy = 0, motionEnergy = 0, xorState = 0;
+    let dominantFreq = 0, fps = 0, frameCnt = 0, lastFps = 0;
+    let phase = 'Observe';
+    let running = false;
+
+    // ---------- FIR helper ----------
+    function applyFIR(signal, taps) {
+        const kernel = MATH.firKernels[taps] || MATH.firKernels[5];
+        const half = Math.floor(kernel.length / 2);
+        const out = new Float32Array(signal.length);
+        for (let i = 0; i < signal.length; i++) {
+            let sum = 0;
+            for (let k = 0; k < kernel.length; k++) {
+                const idx = i + k - half;
+                if (idx >= 0 && idx < signal.length) sum += signal[idx] * kernel[k];
+            }
+            out[i] = sum;
+        }
+        return out;
+    }
+
+    // ---------- IIR helper (one-pole low-pass on a scalar) ----------
+    let iirState = 0;
+    function applyIIR(value) {
+        iirState = settings.iirAlpha * value + (1 - settings.iirAlpha) * iirState;
+        return iirState;
+    }
+
+    // ---------- XOR feature fusion ----------
+    function xorFeatures(audioNorm, motionNorm) {
+        const a = Math.min(255, Math.floor(audioNorm * 255)) & 0xFF;
+        const m = Math.min(255, Math.floor(motionNorm * 255)) & 0xFF;
+        const fused = (a ^ m ^ settings.xorMask) & 0xFF;
+        return fused / 255;
+    }
+
+    // ---------- Grid generator ----------
+    function initGrid(size) {
+        gridSize = size;
+        grid = new Float32Array(size * size);
+        nextGrid = new Float32Array(size * size);
+        potential = new Float32Array(size * size);
+        refractory = new Uint8Array(size * size);
+        for (let i = 0; i < grid.length; i++) grid[i] = Math.random() * 0.1;
+        neuroEpoch = 0;
+        spikeBatchLog = [];
+    }
+
+    function updateGrid() {
+        if (!settings.behave) return;
+        const N = gridSize;
+        const fused = xorFeatures(audioEnergy, motionEnergy);
+        // VLC "balance" pans where energy is injected across the field
+        const panShift = settings.balance * (N * 0.3);
+
+        for (let y = 0; y < N; y++) {
+            for (let x = 0; x < N; x++) {
+                const i = y * N + x;
+                let v = grid[i] * settings.decay;
+
+                if (settings.mode === 'energy') {
+                    const dist = Math.hypot(x - (N / 2 + panShift), y - N / 2) / (N * 0.7);
+                    v += fused * (1 - dist) * 0.35 * settings.micGain;
+                } else if (settings.mode === 'xor') {
+                    const pattern = ((x * 13) ^ (y * 7) ^ Math.floor(fused * 255)) & 0xFF;
+                    v += (pattern / 255) * fused * 0.4;
+                } else if (settings.mode === 'wave') {
+                    const t = performance.now() * 0.001;
+                    v += Math.sin(x * 0.3 + t * 2 + fused * 4) *
+                         Math.cos(y * 0.25 - t * 1.5) * fused * 0.3;
+                } else if (settings.mode === 'cellular') {
+                    // Base continuous CA: average of neighbors + XOR bias
+                    let sum = 0, cnt = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const nx = (x + dx + N) % N;
+                            const ny = (y + dy + N) % N;
+                            sum += grid[ny * N + nx];
+                            cnt++;
+                        }
+                    }
+                    const avg = sum / cnt;
+                    const bias = ((x ^ y) & 1) ? fused : -fused * 0.5;
+
+                    // --- Neuromorphic batch recording layer ---
+                    // Only a rotating batch of cells is "recorded" (integrated) each frame,
+                    // like asynchronous readout of a spiking sensor array, rather than a
+                    // full synchronous update. This is what makes it read as a synthetic
+                    // neuromorphic field instead of a plain CA.
+                    const batchSize = Math.max(1, Math.round(settings.neuroBatchSize));
+                    const inBatch = ((i + frameCnt) % batchSize) === 0;
+                    if (inBatch) {
+                        potential[i] = potential[i] * 0.92 + (avg + fused * 0.5) * 0.3;
+                        if (potential[i] > settings.neuroThreshold && refractory[i] === 0) {
+                            potential[i] = 0;
+                            refractory[i] = 4;
+                            spikeBatchLog.push(1);
+                        } else if (refractory[i] > 0) {
+                            refractory[i]--;
+                        }
+                        if (spikeBatchLog.length > 512) spikeBatchLog.shift();
+                    }
+                    const spikeGlow = refractory[i] > 0 ? 0.4 : 0;
+                    v = avg * 0.8 + bias * 0.2 + spikeGlow + v * 0.05;
+                }
+
+                nextGrid[i] = Math.max(0, Math.min(1.5, v));
+            }
+        }
+        // Swap
+        const tmp = grid; grid = nextGrid; nextGrid = tmp;
+
+        if (settings.mode === 'cellular') {
+            neuroEpoch = Math.floor(frameCnt / Math.max(1, settings.neuroBatchSize)) + neuroEpoch;
+            let fires = 0;
+            for (let i = 0; i < spikeBatchLog.length; i++) fires += spikeBatchLog[i];
+            spikeRate = spikeBatchLog.length ? fires / spikeBatchLog.length : 0;
+        }
+    }
+
+    // ---------- Observe phase ----------
+    function observe() {
+        if (!settings.observe || !running) return;
+
+        // Audio — VLC-style scaffold: 3-band bass/mid/treble gain, volume, balance, mute, loudness
+        if (analyser) {
+            analyser.getByteFrequencyData(dataArray);
+            const n = dataArray.length;
+            const third = Math.floor(n / 3);
+            let lowSum = 0, midSum = 0, highSum = 0, maxVal = 0, maxIdx = 0;
+            for (let i = 0; i < n; i++) {
+                const v = dataArray[i];
+                if (i < third) lowSum += v;
+                else if (i < 2 * third) midSum += v;
+                else highSum += v;
+                if (v > maxVal) { maxVal = v; maxIdx = i; }
+            }
+            const bassF = 1 + settings.bass / 10;
+            const midF = 1 + settings.mid / 10;
+            const trebleF = 1 + settings.treble / 10;
+            const weighted = (lowSum * bassF + midSum * midF + highSum * trebleF) / n;
+            let rawEnergy = (weighted / 255) * settings.volume;
+            if (settings.muted) rawEnergy = 0;
+            if (settings.loudness) rawEnergy = Math.min(1, Math.pow(rawEnergy, 0.7) * 1.25);
+            audioEnergy = applyIIR(rawEnergy * settings.micGain);
+            dominantFreq = Math.round(maxIdx * audioCtx.sampleRate / analyser.fftSize);
+        }
+
+        // Camera motion (frame difference)
+        if (videoEl && videoEl.readyState >= 2) {
+            const w = 64, h = 48;
+            videoCanvas.width = w; videoCanvas.height = h;
+            videoCtx.drawImage(videoEl, 0, 0, w, h);
+            const frame = videoCtx.getImageData(0, 0, w, h).data;
+            if (prevFrame) {
+                let diff = 0;
+                for (let i = 0; i < frame.length; i += 4) {
+                    const g1 = (frame[i] + frame[i+1] + frame[i+2]) / 3;
+                    const g0 = (prevFrame[i] + prevFrame[i+1] + prevFrame[i+2]) / 3;
+                    diff += Math.abs(g1 - g0);
+                }
+                const rawMotion = (diff / (w * h)) / 255;
+                motionEnergy = applyIIR(rawMotion * settings.camGain * 4);
+            }
+            prevFrame = new Uint8ClampedArray(frame);
+        }
+    }
+
+    // ---------- Learn phase ----------
+    function learn() {
+        if (!settings.learn) return;
+        const synthetic = new Float32Array(32);
+        for (let i = 0; i < 32; i++) {
+            synthetic[i] = audioEnergy * Math.sin(i * 0.4) +
+                           motionEnergy * Math.cos(i * 0.3);
+        }
+        const filtered = applyFIR(synthetic, settings.firTaps);
+        let mean = 0;
+        for (let v of filtered) mean += v;
+        mean /= filtered.length;
+        xorState = Math.floor(xorFeatures(audioEnergy, motionEnergy) * 255);
+        if (mean > 0.01) {
+            for (let i = 0; i < grid.length; i += 7) {
+                grid[i] = Math.min(1.5, grid[i] + mean * 0.08);
+            }
+        }
+    }
+
+    // ---------- React phase (UI + visual feedback) ----------
+    function react() {
+        if (!settings.react) return;
+        document.getElementById('audio-e').textContent = audioEnergy.toFixed(3);
+        document.getElementById('motion-e').textContent = motionEnergy.toFixed(3);
+        document.getElementById('xor-s').textContent = '0x' + xorState.toString(16).padStart(2, '0');
+        document.getElementById('dom-freq').textContent = dominantFreq + ' Hz';
+        let active = 0;
+        for (let v of grid) if (v > 0.15) active++;
+        document.getElementById('active-c').textContent = active;
+        document.getElementById('neuro-epoch').textContent = neuroEpoch;
+        document.getElementById('spike-rate').textContent = spikeRate.toFixed(2);
+        document.getElementById('digit-s').textContent = xorState % 10;
+        document.getElementById('phase').textContent = phase;
+    }
+
+    // ---------- Main loop ----------
+    function loop(ts) {
+        requestAnimationFrame(loop);
+        if (!running) return;
+
+        frameCnt++;
+        if (ts - lastFps > 1000) {
+            fps = Math.round(frameCnt * 1000 / (ts - lastFps));
+            document.getElementById('fps').textContent = fps;
+            frameCnt = 0; lastFps = ts;
+        }
+
+        phase = 'Observe';
+        observe();
+        phase = 'Learn';
+        learn();
+        phase = 'Behave';
+        updateGrid();
+        phase = 'React';
+        react();
+
+        drawGrid();
+    }
+
+    // ---------- Canvas rendering (2.5D pseudo-isometric extrusion) ----------
+    const canvas = document.getElementById('gridCanvas');
+    const ctx = canvas.getContext('2d');
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function drawGrid() {
+        const N = gridSize;
+        const cellW = canvas.width / N;
+        const cellH = canvas.height / N;
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const skewX = 0.35; // pseudo-3D skew for the 2.5D projection
+        const heightScale = Math.min(cellW, cellH) * 0.9;
+
+        for (let y = 0; y < N; y++) {
+            for (let x = 0; x < N; x++) {
+                const v = grid[y * N + x];
+                if (v < 0.02) continue;
+                const h = v * heightScale;
+                const px = x * cellW + 1 + h * skewX;
+                const py = y * cellH + 1 - h;
+                const w = cellW - 2;
+                const cH = cellH - 2;
+                const hue = (180 + v * 120 + xorState * 0.5) % 360;
+                const light = 20 + v * 55;
+                const alpha = Math.min(1, v * 1.2);
+
+                // side/depth face
+                ctx.globalAlpha = alpha * 0.55;
+                ctx.fillStyle = `hsl(${hue}, 75%, ${Math.max(8, light - 22)}%)`;
+                ctx.beginPath();
+                ctx.moveTo(px, py + cH);
+                ctx.lineTo(px - h * skewX, py + cH + h);
+                ctx.lineTo(px - h * skewX + w, py + cH + h);
+                ctx.lineTo(px + w, py + cH);
+                ctx.closePath();
+                ctx.fill();
+
+                // top face
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = `hsl(${hue}, 85%, ${light}%)`;
+                ctx.fillRect(px, py, w, cH);
+            }
+        }
+        ctx.globalAlpha = 1;
+
+        if (settings.digitField) drawDigitOverlay();
+    }
+
+    // ---------- Vivid digit / XOR overlay ----------
+    function drawDigitOverlay() {
+        const digit = ((xorState % 10) + 10) % 10;
+        const bitmap = DIGIT_FONT[digit];
+        const t = performance.now() * 0.001;
+        const pulse = 1 + audioEnergy * 0.4;
+        const cell = Math.min(canvas.width, canvas.height) * 0.045 * pulse;
+        const w = 5 * cell, h = 7 * cell;
+        const ox = canvas.width - w - 24;
+        const oy = 24;
+
+        ctx.save();
+        ctx.globalAlpha = 0.55 + motionEnergy * 0.3;
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 5; col++) {
+                if ((bitmap[row] >> (4 - col)) & 1) {
+                    const hue = (t * 60 + row * 25 + col * 25 + xorState) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 95%, 62%)`;
+                    ctx.fillRect(ox + col * cell, oy + row * cell, cell - 1, cell - 1);
+                }
+            }
+        }
+        ctx.restore();
+    }
+
+    // ---------- Sensor init ----------
+    async function start() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: { facingMode: 'user', width: 320, height: 240 }
+            });
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            micSource = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.6;
+            micSource.connect(analyser);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            videoEl = document.getElementById('video-preview');
+            videoEl.srcObject = stream;
+            videoEl.style.display = 'block';
+            videoCanvas = document.createElement('canvas');
+            videoCtx = videoCanvas.getContext('2d', { willReadFrequently: true });
+
+            document.getElementById('permission-overlay').style.display = 'none';
+            initGrid(settings.gridSize || 32);
+            running = true;
+            requestAnimationFrame(loop);
+        } catch (err) {
+            console.error(err);
+            alert('Could not access camera/microphone. Please allow permissions and reload.');
+        }
+    }
+
+    // ---------- UI wiring ----------
+    document.getElementById('start-button').addEventListener('click', start);
+
+    document.querySelectorAll('#ui-panel input[type=range]').forEach(el => {
+        el.addEventListener('input', e => {
+            const id = e.target.id;
+            const val = parseFloat(e.target.value);
+            const span = e.target.nextElementSibling;
+            switch (id) {
+                case 'mic-gain': settings.micGain = val; span.textContent = val.toFixed(2); break;
+                case 'cam-gain': settings.camGain = val; span.textContent = val.toFixed(2); break;
+                case 'fir-taps': settings.firTaps = Math.round(val); span.textContent = Math.round(val); break;
+                case 'iir-alpha': settings.iirAlpha = val; MATH.iirAlpha = val; span.textContent = val.toFixed(2); break;
+                case 'xor-mask': settings.xorMask = Math.round(val); span.textContent = Math.round(val); break;
+                case 'grid-size': settings.gridSize = Math.round(val); initGrid(settings.gridSize); span.textContent = Math.round(val); break;
+                case 'decay': settings.decay = val; span.textContent = val.toFixed(2); break;
+                case 'neuro-batch': settings.neuroBatchSize = Math.round(val); span.textContent = Math.round(val); break;
+                case 'neuro-thresh': settings.neuroThreshold = val; span.textContent = val.toFixed(2); break;
+                case 'vlc-volume': settings.volume = val / 100; span.textContent = Math.round(val) + '%'; break;
+                case 'vlc-balance': settings.balance = val / 100; span.textContent = Math.round(val); break;
+                case 'vlc-bass': settings.bass = val; span.textContent = Math.round(val) + 'dB'; break;
+                case 'vlc-mid': settings.mid = val; span.textContent = Math.round(val) + 'dB'; break;
+                case 'vlc-treble': settings.treble = val; span.textContent = Math.round(val) + 'dB'; break;
+            }
+        });
+    });
+
+    // Mode buttons
+    ['energy','xor','wave','cellular'].forEach(m => {
+        document.getElementById('mode-' + m).addEventListener('click', e => {
+            document.querySelectorAll('[id^=mode-]').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            settings.mode = m;
+        });
+    });
+
+    // Phase toggles
+    ['observe','learn','behave','react'].forEach(p => {
+        document.getElementById('btn-' + p).addEventListener('click', e => {
+            settings[p] = !settings[p];
+            e.target.classList.toggle('active', settings[p]);
+        });
+    });
+
+    // Digit / XOR field toggle
+    document.getElementById('btn-digit').addEventListener('click', e => {
+        settings.digitField = !settings.digitField;
+        e.target.classList.toggle('active', settings.digitField);
+    });
+
+    // VLC mute / loudness toggles
+    document.getElementById('btn-mute').addEventListener('click', e => {
+        settings.muted = !settings.muted;
+        e.target.classList.toggle('active', settings.muted);
+        e.target.classList.toggle('warn', settings.muted);
+    });
+    document.getElementById('btn-loudness').addEventListener('click', e => {
+        settings.loudness = !settings.loudness;
+        e.target.classList.toggle('active', settings.loudness);
+    });
+
+    // Presets
+    const presets = {
+        calm:         { micGain: 0.8, camGain: 0.6, firTaps: 9, iirAlpha: 0.15, decay: 0.97, mode: 'energy' },
+        reactive:     { micGain: 1.8, camGain: 1.5, firTaps: 5, iirAlpha: 0.35, decay: 0.90, mode: 'xor' },
+        chaotic:      { micGain: 2.5, camGain: 2.0, firTaps: 3, iirAlpha: 0.55, decay: 0.88, mode: 'cellular', neuroBatchSize: 2, neuroThreshold: 0.5 },
+        filter:       { micGain: 1.2, camGain: 1.0, firTaps: 13, iirAlpha: 0.12, decay: 0.95, mode: 'wave' },
+        neuromorphic: { micGain: 1.4, camGain: 1.2, firTaps: 7, iirAlpha: 0.3, decay: 0.93, mode: 'cellular', neuroBatchSize: 3, neuroThreshold: 0.55, digitField: true }
+    };
+    Object.keys(presets).forEach(name => {
+        document.getElementById('preset-' + name).addEventListener('click', () => {
+            Object.assign(settings, presets[name]);
+            document.getElementById('mic-gain').value = settings.micGain;
+            document.getElementById('cam-gain').value = settings.camGain;
+            document.getElementById('fir-taps').value = settings.firTaps;
+            document.getElementById('iir-alpha').value = settings.iirAlpha;
+            document.getElementById('decay').value = settings.decay;
+            document.getElementById('neuro-batch').value = settings.neuroBatchSize;
+            document.getElementById('neuro-thresh').value = settings.neuroThreshold;
+            document.querySelectorAll('[id^=mode-]').forEach(b => b.classList.remove('active'));
+            document.getElementById('mode-' + settings.mode).classList.add('active');
+            document.getElementById('btn-digit').classList.toggle('active', settings.digitField);
+            document.querySelectorAll('#ui-panel input[type=range]').forEach(el => {
+                el.dispatchEvent(new Event('input'));
+            });
+        });
+    });
+
+    document.querySelector('.toggle-ui').addEventListener('click', () => {
+        document.getElementById('ui-panel').classList.toggle('hidden');
+    });
+    </script>
+</body>
+</html>
+
+
